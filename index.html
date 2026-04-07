@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>ANUNCIOS.TV</title>
+  <meta name="description" content="Comunidad que avisa cuando acaba la publicidad en la tele" />
+  <meta name="theme-color" content="#0a0c10" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Anuncios.TV" />
+  <link rel="manifest" href="manifest.json" />
+  <link rel="apple-touch-icon" href="icons/icon-192.png" />
+  <link rel="icon" type="image/png" sizes="32x32" href="icons/icon-32.png" />
+  <link rel="stylesheet" href="src/style.css" />
+</head>
+<body>
+
+  <!-- Scanlines overlay -->
+  <div class="scanlines"></div>
+  <div class="bg-glow"></div>
+
+  <!-- Toast container -->
+  <div id="toasts"></div>
+
+  <!-- Header -->
+  <header>
+    <div class="header-inner">
+      <div class="status-dot" id="statusDot"></div>
+      <h1>ANUNCIOS<span>.TV</span></h1>
+      <div class="status-dot" id="statusDot2"></div>
+    </div>
+    <p class="subtitle" id="subtitle">Conectando…</p>
+  </header>
+
+  <!-- Active ads section -->
+  <section id="activeSection" class="hidden">
+    <div class="section-label">▶ EN PUBLICIDAD AHORA</div>
+    <div id="activeList"></div>
+  </section>
+
+  <!-- Channel grid -->
+  <section id="channelSection">
+    <div class="section-label">CANALES — pulsa para reportar publicidad</div>
+    <div id="channelGrid" class="channel-grid"></div>
+  </section>
+
+  <!-- How it works -->
+  <section class="how-it-works">
+    <div class="section-label">CÓMO USAR</div>
+    <ol>
+      <li>Pulsa un canal cuando empiece la publicidad</li>
+      <li>Indica cuánto dura (si aparece en pantalla)</li>
+      <li>Recibirás notificación al terminar el tiempo</li>
+      <li>Pulsa <span class="end-label">FIN</span> cuando vuelva el programa</li>
+    </ol>
+  </section>
+
+  <!-- Config banner (shown until Supabase is configured) -->
+  <div id="configBanner" class="config-banner hidden">
+    <strong>⚙️ Configuración necesaria</strong>
+    <p>Edita <code>src/config.js</code> con tus credenciales de Supabase para activar el modo comunitario.</p>
+    <p>Mientras tanto la app funciona en <em>modo local</em>.</p>
+    <button id="dismissConfig">Entendido</button>
+  </div>
+
+  <!-- Report modal -->
+  <div id="modalOverlay" class="modal-overlay hidden">
+    <div id="modal" class="modal">
+      <div class="modal-handle"></div>
+      <div class="modal-channel-header">
+        <span id="modalLogo" class="channel-logo-big"></span>
+        <div>
+          <div id="modalName" class="modal-channel-name"></div>
+          <div class="modal-hint">¿Cuánto dura la publicidad?</div>
+        </div>
+      </div>
+      <div id="durationGrid" class="duration-grid"></div>
+      <button id="reportBtn" class="report-btn">📢 REPORTAR PUBLICIDAD</button>
+    </div>
+  </div>
+
+  <!-- Scripts -->
+  <script src="src/config.js"></script>
+  <script src="src/channels.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="src/db.js"></script>
+  <script src="src/app.js"></script>
+  <script src="src/sw-register.js"></script>
+</body>
+</html>
