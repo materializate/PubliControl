@@ -1,0 +1,18 @@
+# Dependencies
+node_modules/
+
+# Build artifacts
+dist/
+.cache/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+*.swp
+
+# Never commit real credentials
+# (config.js should only have empty strings in the repo)
+# The real values are injected at build time via GitHub Secrets
