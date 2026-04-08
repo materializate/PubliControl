@@ -14,5 +14,5 @@
  * ─────────────────────────────────────────────────────────────
  */
 
-window.SUPABASE_URL  = '';   // ej: 'https://abcdefgh.supabase.co'
-window.SUPABASE_ANON = '';   // ej: 'eyJhbGciOiJIUzI1NiIs...'
+window.SUPABASE_URL  = 'https://uawizeotympvtebertbw.supabase.co';   // ej: 'https://abcdefgh.supabase.co'
+window.SUPABASE_ANON = 'sb_publishable_uDurLakIB-SH6qKEtNJnVQ_4gzBoO2x';   // ej: 'eyJhbGciOiJIUzI1NiIs...'
