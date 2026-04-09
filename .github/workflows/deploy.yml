@@ -1,0 +1,126 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+# Sets permissions to allow deployment to GitHub Pages
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Allow only one concurrent deployment
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # ── Inject Supabase credentials from GitHub Secrets ──────
+      # This replaces the placeholder values in config.js
+      # so the real keys are never stored in the repo.
+      - name: Inject Supabase config
+        env:
+          SUPABASE_URL:  ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON: ${{ secrets.SUPABASE_ANON }}
+          EPG_PROXY_URL: ${{ secrets.EPG_PROXY_URL }}
+        run: |
+          if [ -n "$SUPABASE_URL" ] && [ -n "$SUPABASE_ANON" ]; then
+            echo "Injecting Supabase credentials..."
+            sed -i \
+              "s|window.SUPABASE_URL  = '';|window.SUPABASE_URL  = '${SUPABASE_URL}';|g" \
+              src/config.js
+            sed -i \
+              "s|window.SUPABASE_ANON = '';|window.SUPABASE_ANON = '${SUPABASE_ANON}';|g" \
+              src/config.js
+            echo "✅ Credentials injected."
+          else
+            echo "⚠️  No Supabase secrets found. App will run in local mode."
+          fi
+          if [ -n "$EPG_PROXY_URL" ]; then
+            echo "Injecting EPG proxy URL..."
+            sed -i \
+              "s|window.EPG_PROXY_URL = .*|window.EPG_PROXY_URL = '${EPG_PROXY_URL}';|g" \
+              src/config.js
+            echo "✅ EPG proxy URL injected."
+          else
+            echo "⚠️  No EPG_PROXY_URL secret found. App will use demo EPG data."
+          fi
+
+      # ── Generate PWA icons from SVG ───────────────────────────
+      - name: Install icon generator
+        run: npm install -g svg2png-cli 2>/dev/null || true
+
+      - name: Generate icons (fallback if svg2png unavailable)
+        run: |
+          mkdir -p icons
+          # If icons already exist in repo, skip generation
+          if [ ! -f "icons/icon-192.png" ]; then
+            echo "Generating placeholder icons..."
+            # Use Python Pillow as fallback icon generator
+            pip install Pillow --quiet
+            python3 - <<'EOF'
+          from PIL import Image, ImageDraw, ImageFont
+          import os
+
+          sizes = [72, 192, 512]
+          os.makedirs("icons", exist_ok=True)
+
+          for size in sizes:
+              img = Image.new("RGB", (size, size), color="#0a0c10")
+              draw = ImageDraw.Draw(img)
+              # Draw a simple TV icon
+              margin = size // 8
+              draw.rectangle(
+                  [margin, margin + size//6, size - margin, size - margin],
+                  outline="#ff6b35", width=max(2, size//40)
+              )
+              # Screen
+              inner = margin * 2
+              draw.rectangle(
+                  [inner, inner + size//5, size - inner, size - inner - size//10],
+                  fill="#151820"
+              )
+              # Antenna
+              cx = size // 2
+              draw.line([(cx, margin + size//6), (cx - size//8, margin)], fill="#ff6b35", width=max(2, size//60))
+              draw.line([(cx, margin + size//6), (cx + size//8, margin)], fill="#ff6b35", width=max(2, size//60))
+              img.save(f"icons/icon-{size}.png")
+              print(f"Generated icons/icon-{size}.png")
+
+          # Also create icon-32 for favicon
+          img32 = Image.new("RGB", (32, 32), color="#0a0c10")
+          draw32 = ImageDraw.Draw(img32)
+          draw32.rectangle([4, 8, 28, 24], outline="#ff6b35", width=2)
+          draw32.rectangle([7, 10, 25, 21], fill="#151820")
+          img32.save("icons/icon-32.png")
+          print("Generated icons/icon-32.png")
+          EOF
+          else
+            echo "Icons already exist, skipping generation."
+          fi
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: '.'
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
