@@ -88,7 +88,6 @@ function startTicker() {
   }, 1000);
 }
 
-}
 
 /* ── Render ─────────────────────────────────────────────────── */
 function renderStatusBar() {
