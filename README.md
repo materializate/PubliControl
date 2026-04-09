@@ -145,3 +145,47 @@ window.CHANNELS = [
 ## 📄 Licencia
 
 MIT — libre para uso personal y comercial.
+
+---
+
+## 📡 EPG — Programación en tiempo real
+
+La app muestra qué programa se está emitiendo en cada canal gracias al EPG de [TDTChannels](https://github.com/LaQuay/TDTChannels) (100% legal, gratuito, TDT española en abierto).
+
+### Activar el EPG
+
+El EPG requiere una **Supabase Edge Function** como proxy (para evitar problemas de CORS):
+
+```bash
+# Instala Supabase CLI si no lo tienes
+npm install -g supabase
+
+# Conecta con tu proyecto
+supabase login
+supabase link --project-ref TU_PROJECT_REF
+
+# Despliega la función
+supabase functions deploy epg-proxy --no-verify-jwt
+```
+
+Una vez desplegada, la URL del proxy se construye automáticamente a partir de `SUPABASE_URL`:
+```
+https://TU_PROJECT.supabase.co/functions/v1/epg-proxy
+```
+
+### Qué muestra el EPG
+
+- **En cada canal:** el programa actual con barra de progreso + el siguiente
+- **Al reportar publicidad:** qué programa se interrumpió
+- **Al terminar la publicidad:** notificación con el título del siguiente programa
+- **En la sección de activos:** "🎬 Ahora: Título" + "▶ Después: Título · HH:MM"
+
+### Canales incluidos (30 total)
+
+| Grupo | Canales |
+|-------|---------|
+| Generalistas | La 1, La 2, Antena 3, Cuatro, Telecinco, La Sexta |
+| Temáticos | Neox, Nova, Mega, FDF, Energy, Divinity, Be Mad, Clan, Trece, Star Life |
+| Cable | DMAX, Paramount Network, AXN, Syfy, Comedy Central, MTV |
+| Noticias | Euronews, RT Español |
+| Autonómicas | TV3, TVG, ETB 1, Canal Sur, Aragón TV, C. Extremadura, IB3 |
