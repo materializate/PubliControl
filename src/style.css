@@ -376,3 +376,50 @@ section { margin-top: 24px; }
   background: none; border: none; color: var(--muted);
   font-size: 20px; cursor: pointer; padding: 4px; flex-shrink: 0;
 }
+
+
+/* ─── EPG strip on channel card ─────────────────────────────── */
+.epg-strip {
+  margin-top: 6px; padding-top: 6px;
+  border-top: 1px solid rgba(255,255,255,0.06);
+}
+.epg-now {
+  font-size: 11px; color: #aaa;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  line-height: 1.4;
+}
+.epg-now strong { color: #ccc; font-weight: 600; }
+.epg-next {
+  font-size: 10px; color: #555;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  margin-top: 2px;
+}
+.epg-progress-track {
+  height: 2px; background: rgba(255,255,255,0.06);
+  border-radius: 1px; margin-top: 4px;
+}
+.epg-progress-fill {
+  height: 100%; border-radius: 1px;
+  background: linear-gradient(90deg, var(--accent), #ff8c5a);
+  transition: width 30s linear;
+}
+
+/* Channel button — wider when EPG present */
+.channel-btn.has-epg {
+  flex-direction: column;
+  align-items: stretch;
+}
+.channel-btn.has-epg .channel-btn-left {
+  width: 100%;
+}
+.channel-btn.has-epg .channel-btn-top {
+  display: flex; align-items: center;
+  justify-content: space-between;
+}
+
+/* ─── EPG loading indicator ─────────────────────────────────── */
+.epg-loading {
+  font-size: 10px; color: #444; letter-spacing: 2px;
+  text-align: center; padding: 8px 0;
+  animation: pulse 1.5s ease-in-out infinite;
+}

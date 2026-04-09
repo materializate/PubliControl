@@ -1,20 +1,21 @@
 /**
  * ─────────────────────────────────────────────────────────────
- *  app.js — Lógica principal de ANUNCIOS.TV
+ *  app.js — Lógica principal de ANUNCIOS.TV  v2
+ *  EPG integrado + filtro por grupos de canales
  * ─────────────────────────────────────────────────────────────
  */
 
 /* ── State ─────────────────────────────────────────────────── */
 const state = {
-  ads:             {},        // { channelId: adObject }
-  selectedChannel: null,
+  ads:              {},
+  selectedChannel:  null,
   selectedDuration: null,
-  tickInterval:    null,
+  tickInterval:     null,
+  epgLoaded:        false,
 };
 
 /* ── DOM refs ───────────────────────────────────────────────── */
 const $ = (id) => document.getElementById(id);
-
 const els = {
   subtitle:      $('subtitle'),
   statusDots:    [$('statusDot'), $('statusDot2')],
@@ -33,14 +34,9 @@ const els = {
 /* ── Helpers ────────────────────────────────────────────────── */
 function formatTime(s) {
   if (!s || s <= 0) return '00:00';
-  const m = Math.floor(s / 60);
-  const sec = s % 60;
-  return `${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}`;
+  return `${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;
 }
-
-function getChannel(id) {
-  return window.CHANNELS.find(c => c.id === id);
-}
+function getChannel(id) { return window.CHANNELS.find(c => c.id === id); }
 
 /* ── Notifications ──────────────────────────────────────────── */
 async function askNotificationPermission() {
@@ -48,15 +44,12 @@ async function askNotificationPermission() {
     await Notification.requestPermission();
   }
 }
-
-function fireNotification(channelName) {
+function fireNotification(channelName, nextTitle) {
+  const body = nextTitle
+    ? `${channelName} vuelve · Sigue: ${nextTitle}`
+    : `${channelName} ha terminado la publicidad`;
   if ('Notification' in window && Notification.permission === 'granted') {
-    new Notification('📺 ¡Vuelve a la tele!', {
-      body: `${channelName} ha terminado la publicidad`,
-      icon: 'icons/icon-192.png',
-      badge: 'icons/icon-72.png',
-      vibrate: [200, 100, 200],
-    });
+    new Notification('📺 ¡Vuelve a la tele!', { body, icon: 'icons/icon-192.png', badge: 'icons/icon-72.png' });
   }
   if ('vibrate' in navigator) navigator.vibrate([200, 100, 200]);
 }
@@ -85,14 +78,9 @@ function startTicker() {
         dirty = true;
         if (ad.remaining === 0) {
           const ch = getChannel(id);
-          fireNotification(ch?.name || id);
+          fireNotification(ch?.name || id, EPG.getNext(id)?.title);
           toast(`✅ ${ch?.name} ha terminado la publicidad`, 'success');
-          // Mark ended after 2s visual feedback
-          setTimeout(() => {
-            DB.endAd(id);
-            delete state.ads[id];
-            renderAll();
-          }, 2000);
+          setTimeout(() => { DB.endAd(id); delete state.ads[id]; renderAll(); }, 2000);
         }
       }
     }
@@ -100,73 +88,63 @@ function startTicker() {
   }, 1000);
 }
 
-/* ── Render helpers ─────────────────────────────────────────── */
+}
 
+/* ── Render ─────────────────────────────────────────────────── */
 function renderStatusBar() {
-  const count = Object.keys(state.ads).length;
+  const count  = Object.keys(state.ads).length;
   const online = DB.isOnline();
-
+  const epgTag = window.EPG_PROXY_URL ? ' · EPG 📡' : '';
   els.statusDots.forEach(d => {
     d.className = 'status-dot';
     if (count > 0) d.classList.add('active');
     else if (online) d.classList.add('online');
   });
-
-  if (!online) {
-    els.subtitle.textContent = 'Modo local (sin Supabase)';
-  } else if (count === 0) {
-    els.subtitle.textContent = 'Sin publicidad activa · Modo comunitario 🟢';
-  } else {
-    els.subtitle.textContent =
-      `${count} canal${count > 1 ? 'es' : ''} en publicidad · Modo comunitario 🟢`;
-  }
+  if (!online)      els.subtitle.textContent = `Modo local${epgTag}`;
+  else if (!count)  els.subtitle.textContent = `Sin publicidad activa · Comunitario 🟢${epgTag}`;
+  else              els.subtitle.textContent = `${count} canal${count>1?'es':''} en publicidad · 🟢${epgTag}`;
 }
 
 function renderActiveList() {
   const active = Object.values(state.ads);
   els.activeSection.classList.toggle('hidden', active.length === 0);
-
   els.activeList.innerHTML = '';
+
   for (const ad of active) {
     const ch = getChannel(ad.channelId);
     if (!ch) continue;
-
     const hasTimer = ad.duration != null;
     const rem = ad.remaining;
-    const pct = hasTimer ? Math.max(0, (rem / ad.duration) * 100) : null;
-    const cdClass = rem < 30 ? 'urgent' : rem < 60 ? 'warn' : '';
+    const pct = hasTimer ? Math.max(0,(rem/ad.duration)*100) : null;
+    const cdClass = rem<30?'urgent':rem<60?'warn':'';
     const isEnding = hasTimer && rem === 0;
+    const nowProg  = EPG.getNow(ad.channelId);
+    const nextProg = EPG.getNext(ad.channelId);
 
     const card = document.createElement('div');
-    card.className = `active-card${hasTimer ? ' has-timer' : ''}${isEnding ? ' ending' : ''}`;
+    card.className = `active-card${hasTimer?' has-timer':''}${isEnding?' ending':''}`;
     card.dataset.channelId = ad.channelId;
     card.innerHTML = `
       <div class="active-card-top">
         <div class="active-card-left">
           <span class="channel-logo" style="background:${ch.color}">${ch.logo}</span>
-          <span class="channel-name-big">${ch.name}</span>
+          <div>
+            <span class="channel-name-big">${ch.name}</span>
+            ${nowProg?`<div style="font-size:10px;color:#666;margin-top:2px">🎬 ${nowProg.title}</div>`:''}
+          </div>
           <span class="reporters-badge">👥 ${ad.reporters}</span>
         </div>
         <div class="active-card-right">
-          ${hasTimer
-            ? `<span class="countdown ${cdClass}">${formatTime(rem)}</span>`
-            : `<span class="no-timer-label">sin timer</span>`
-          }
+          ${hasTimer?`<span class="countdown ${cdClass}">${formatTime(rem)}</span>`:`<span class="no-timer-label">sin timer</span>`}
           <button class="end-btn" data-channel="${ad.channelId}">FIN</button>
         </div>
       </div>
-      ${hasTimer ? `
-        <div class="progress-bar-track">
-          <div class="progress-bar-fill" style="width:${pct}%;background:${
-            pct > 50 ? 'var(--info)' : pct > 20 ? '#ffaa00' : 'var(--danger)'
-          }"></div>
-        </div>
-      ` : ''}
+      ${nextProg?`<div style="font-size:11px;color:#555;margin-top:6px;padding-top:6px;border-top:1px solid rgba(255,255,255,0.05)">▶ Después: <span style="color:#888">${EPG.formatProgram(nextProg)}</span></div>`:''}
+      ${hasTimer?`<div class="progress-bar-track" style="margin-top:6px"><div class="progress-bar-fill" style="width:${pct}%;background:${pct>50?'var(--info)':pct>20?'#ffaa00':'var(--danger)'}"></div></div>`:''}
     `;
     els.activeList.appendChild(card);
   }
 
-  // End buttons
   els.activeList.querySelectorAll('.end-btn').forEach(btn => {
     btn.addEventListener('click', () => handleEndAd(btn.dataset.channel));
   });
@@ -175,30 +153,42 @@ function renderActiveList() {
 function renderChannelGrid() {
   els.channelGrid.innerHTML = '';
   for (const ch of window.CHANNELS) {
-    const ad = state.ads[ch.id];
-    const isAd = !!ad;
+    const ad       = state.ads[ch.id];
+    const isAd     = !!ad;
+    const nowProg  = EPG.getNow(ch.id);
+    const nextProg = EPG.getNext(ch.id);
+    const hasEpg   = !!(nowProg || nextProg);
+    const epgPct   = EPG.progressPercent(nowProg);
 
     const btn = document.createElement('button');
-    btn.className = `channel-btn${isAd ? ' in-ad' : ''}`;
+    btn.className = `channel-btn${isAd?' in-ad':''}${hasEpg?' has-epg':''}`;
     btn.disabled = isAd;
 
     const logoStyle = isAd
-      ? `background:rgba(255,68,68,0.25);color:#ff9999;`
+      ? 'background:rgba(255,68,68,0.25);color:#ff9999;'
       : `background:${ch.color};color:#000;`;
 
     const timerHtml = (isAd && ad.duration && ad.remaining > 0)
-      ? `<span class="channel-timer-small">${formatTime(ad.remaining)}</span>`
-      : '';
+      ? `<span class="channel-timer-small">${formatTime(ad.remaining)}</span>` : '';
+
+    const epgHtml = hasEpg ? `
+      <div class="epg-strip">
+        ${nowProg?`<div class="epg-now"><strong>${nowProg.title}</strong></div>${epgPct!==null?`<div class="epg-progress-track"><div class="epg-progress-fill" style="width:${epgPct.toFixed(1)}%"></div></div>`:''}` :''}
+        ${nextProg?`<div class="epg-next">▶ ${EPG.formatProgram(nextProg)}</div>`:''}
+      </div>` : '';
 
     btn.innerHTML = `
-      <div class="channel-btn-left">
-        <span class="channel-logo" style="${logoStyle}">${ch.logo}</span>
-        <div>
-          <div class="channel-name">${ch.name}</div>
-          <div class="channel-status">${isAd ? `EN PUBLI · 👥 ${ad.reporters}` : 'Reportar'}</div>
+      <div class="${hasEpg?'channel-btn-top':'channel-btn-left'}">
+        <div class="channel-btn-left">
+          <span class="channel-logo" style="${logoStyle}">${ch.logo}</span>
+          <div>
+            <div class="channel-name">${ch.name}</div>
+            <div class="channel-status">${isAd?`EN PUBLI · 👥 ${ad.reporters}`:'Reportar'}</div>
+          </div>
         </div>
+        ${timerHtml}
       </div>
-      ${timerHtml}
+      ${epgHtml}
     `;
     if (!isAd) btn.addEventListener('click', () => openModal(ch));
     els.channelGrid.appendChild(btn);
@@ -215,12 +205,21 @@ function renderAll() {
 function openModal(ch) {
   state.selectedChannel = ch;
   state.selectedDuration = null;
-
   els.modalLogo.textContent = ch.logo;
   els.modalLogo.style.background = ch.color;
   els.modalName.textContent = ch.name;
 
-  // Build duration buttons
+  const existingHint = els.modalOverlay.querySelector('.modal-epg-hint');
+  if (existingHint) existingHint.remove();
+  const nowProg = EPG.getNow(ch.id);
+  if (nowProg) {
+    const hint = document.createElement('div');
+    hint.className = 'modal-epg-hint';
+    hint.style.cssText = `font-size:11px;color:#666;margin:-10px 0 14px;padding:8px 12px;background:rgba(255,255,255,0.03);border-radius:6px;border:1px solid rgba(255,255,255,0.07);`;
+    hint.innerHTML = `📺 Interrumpiendo: <span style="color:#999">${nowProg.title}</span>`;
+    els.durationGrid.before(hint);
+  }
+
   els.durationGrid.innerHTML = '';
   for (const d of window.AD_DURATIONS) {
     const btn = document.createElement('button');
@@ -229,21 +228,19 @@ function openModal(ch) {
     btn.dataset.value = d.value ?? '';
     btn.addEventListener('click', () => {
       state.selectedDuration = d.value;
-      els.durationGrid.querySelectorAll('.dur-btn')
-        .forEach(b => b.classList.toggle('selected', b === btn));
+      els.durationGrid.querySelectorAll('.dur-btn').forEach(b => b.classList.toggle('selected', b===btn));
     });
     els.durationGrid.appendChild(btn);
   }
-
-  // Pre-select "No sé"
   els.durationGrid.querySelector('.dur-btn').classList.add('selected');
-
   els.modalOverlay.classList.remove('hidden');
   askNotificationPermission();
 }
 
 function closeModal() {
   els.modalOverlay.classList.add('hidden');
+  const hint = els.modalOverlay.querySelector('.modal-epg-hint');
+  if (hint) hint.remove();
   state.selectedChannel = null;
   state.selectedDuration = null;
 }
@@ -252,15 +249,9 @@ function closeModal() {
 async function handleReport() {
   const ch = state.selectedChannel;
   if (!ch) return;
-
   closeModal();
-
   const ad = await DB.reportAd(ch.id, state.selectedDuration);
-  if (!ad) {
-    toast('❌ Error al reportar. Inténtalo de nuevo.', 'error');
-    return;
-  }
-
+  if (!ad) { toast('❌ Error al reportar. Inténtalo de nuevo.', 'error'); return; }
   state.ads[ch.id] = ad;
   renderAll();
   startTicker();
@@ -268,11 +259,12 @@ async function handleReport() {
 }
 
 async function handleEndAd(channelId) {
-  const ch = getChannel(channelId);
+  const ch   = getChannel(channelId);
+  const next = EPG.getNext(channelId);
   await DB.endAd(channelId);
   delete state.ads[channelId];
   renderAll();
-  toast(`✅ ${ch?.name} ha terminado la publicidad`, 'success');
+  toast(`✅ ${ch?.name} ha terminado${next?' · Sigue: '+next.title:''}`, 'success');
 }
 
 /* ── Realtime ────────────────────────────────────────────────── */
@@ -280,31 +272,21 @@ function setupRealtime() {
   DB.subscribeToChanges(({ eventType, channelId, row }) => {
     if (eventType === 'INSERT' || (eventType === 'UPDATE' && row?.isActive)) {
       if (!state.ads[channelId]) {
-        // Compute remaining from server start time
         if (row.duration) {
-          const elapsed = Math.floor(
-            (Date.now() - new Date(row.startedAt).getTime()) / 1000
-          );
+          const elapsed = Math.floor((Date.now() - new Date(row.startedAt).getTime()) / 1000);
           row.remaining = Math.max(0, row.duration - elapsed);
         }
         state.ads[channelId] = row;
-        const ch = getChannel(channelId);
-        toast(`📢 ${ch?.name} en publicidad (otro usuario)`, 'info');
-        renderAll();
-        startTicker();
+        toast(`📢 ${getChannel(channelId)?.name} en publicidad (otro usuario)`, 'info');
+        renderAll(); startTicker();
       } else if (eventType === 'UPDATE') {
-        // Update reporter count etc.
         state.ads[channelId] = { ...state.ads[channelId], reporters: row.reporters };
         renderAll();
       }
-    } else if (
-      eventType === 'DELETE' ||
-      (eventType === 'UPDATE' && row && !row.isActive)
-    ) {
+    } else if (eventType === 'DELETE' || (eventType === 'UPDATE' && row && !row.isActive)) {
       if (state.ads[channelId]) {
         delete state.ads[channelId];
-        const ch = getChannel(channelId);
-        toast(`✅ ${ch?.name} ha terminado la publicidad`, 'success');
+        toast(`✅ ${getChannel(channelId)?.name} ha terminado la publicidad`, 'success');
         renderAll();
       }
     }
@@ -313,34 +295,28 @@ function setupRealtime() {
 
 /* ── Init ───────────────────────────────────────────────────── */
 async function init() {
-  // Config banner
-  if (!DB.isOnline()) {
-    const dismissed = localStorage.getItem('config_dismissed');
-    if (!dismissed) {
-      els.configBanner.classList.remove('hidden');
-      $('dismissConfig').addEventListener('click', () => {
-        els.configBanner.classList.add('hidden');
-        localStorage.setItem('config_dismissed', '1');
-      });
-    }
+  if (!DB.isOnline() && !localStorage.getItem('config_dismissed')) {
+    els.configBanner.classList.remove('hidden');
+    $('dismissConfig').addEventListener('click', () => {
+      els.configBanner.classList.add('hidden');
+      localStorage.setItem('config_dismissed', '1');
+    });
   }
 
-  // Load initial state
-  state.ads = await DB.fetchActive();
+  els.channelGrid.innerHTML = `<div class="epg-loading" style="grid-column:1/-1">Cargando programación…</div>`;
 
-  // Compute remaining for any active timed ads
+  const [ads] = await Promise.all([
+    DB.fetchActive(),
+    EPG.fetchEPG().then(() => { state.epgLoaded = true; }),
+  ]);
+
+  state.ads = ads;
   for (const id in state.ads) {
     const ad = state.ads[id];
     if (ad.duration && ad.startedAt) {
-      const elapsed = Math.floor(
-        (Date.now() - new Date(ad.startedAt).getTime()) / 1000
-      );
+      const elapsed = Math.floor((Date.now() - new Date(ad.startedAt).getTime()) / 1000);
       ad.remaining = Math.max(0, ad.duration - elapsed);
-      // Auto-clear already-expired
-      if (ad.remaining === 0 && ad.duration) {
-        DB.endAd(id);
-        delete state.ads[id];
-      }
+      if (ad.remaining === 0 && ad.duration) { DB.endAd(id); delete state.ads[id]; }
     }
   }
 
@@ -348,44 +324,38 @@ async function init() {
   startTicker();
   setupRealtime();
 
-  // Modal listeners
+  // Refresh EPG every 10 minutes
+  setInterval(async () => {
+    await EPG.fetchEPG();
+    renderChannelGrid();
+    renderActiveList();
+  }, 10 * 60 * 1000);
+
   els.reportBtn.addEventListener('click', handleReport);
-  els.modalOverlay.addEventListener('click', (e) => {
-    if (e.target === els.modalOverlay) closeModal();
-  });
+  els.modalOverlay.addEventListener('click', (e) => { if (e.target === els.modalOverlay) closeModal(); });
 }
 
 document.addEventListener('DOMContentLoaded', init);
 
 /* ── PWA Install prompt ─────────────────────────────────────── */
 let deferredInstallPrompt = null;
-
 window.addEventListener('beforeinstallprompt', (e) => {
   e.preventDefault();
   deferredInstallPrompt = e;
-
-  // Only show if not already installed / dismissed
   if (localStorage.getItem('install_dismissed')) return;
-
   const banner = document.createElement('div');
   banner.id = 'installBanner';
   banner.innerHTML = `
-    <div>
-      <strong>📺 Instalar Anuncios.TV</strong>
-      <p>Añade la app a tu pantalla de inicio</p>
-    </div>
+    <div><strong>📺 Instalar Anuncios.TV</strong><p>Añade la app a tu pantalla de inicio</p></div>
     <button class="install-btn" id="installBtn">Instalar</button>
     <button class="install-dismiss" id="installDismiss" title="Cerrar">×</button>
   `;
   document.body.appendChild(banner);
-
   $('installBtn').addEventListener('click', async () => {
     banner.remove();
     deferredInstallPrompt.prompt();
     const { outcome } = await deferredInstallPrompt.userChoice;
-    if (outcome === 'accepted') {
-      localStorage.setItem('install_dismissed', '1');
-    }
+    if (outcome === 'accepted') localStorage.setItem('install_dismissed', '1');
   });
   $('installDismiss').addEventListener('click', () => {
     banner.remove();
