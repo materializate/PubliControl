@@ -287,8 +287,9 @@ function closeModal() {
 async function handleReport() {
   const ch = state.selectedChannel;
   if (!ch) return;
+  const duration = state.selectedDuration;
   closeModal();
-  const ad = await DB.reportAd(ch.id, state.selectedDuration);
+  const ad = await DB.reportAd(ch.id, duration);
   if (!ad) { toast('❌ Error al reportar. Inténtalo de nuevo.', 'error'); return; }
   state.ads[ch.id] = ad;
   renderAll();
