@@ -6,6 +6,7 @@
   <title>ANUNCIOS.TV</title>
   <meta name="description" content="Comunidad que avisa cuando acaba la publicidad en la tele" />
   <meta name="theme-color" content="#0a0c10" />
+  <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="Anuncios.TV" />
@@ -16,14 +17,10 @@
 </head>
 <body>
 
-  <!-- Scanlines overlay -->
   <div class="scanlines"></div>
   <div class="bg-glow"></div>
-
-  <!-- Toast container -->
   <div id="toasts"></div>
 
-  <!-- Header -->
   <header>
     <div class="header-inner">
       <div class="status-dot" id="statusDot"></div>
@@ -33,19 +30,16 @@
     <p class="subtitle" id="subtitle">Conectando…</p>
   </header>
 
-  <!-- Active ads section -->
   <section id="activeSection" class="hidden">
     <div class="section-label">▶ EN PUBLICIDAD AHORA</div>
     <div id="activeList"></div>
   </section>
 
-  <!-- Channel grid -->
   <section id="channelSection">
     <div class="section-label">CANALES — pulsa para reportar publicidad</div>
     <div id="channelGrid" class="channel-grid"></div>
   </section>
 
-  <!-- How it works -->
   <section class="how-it-works">
     <div class="section-label">CÓMO USAR</div>
     <ol>
@@ -56,7 +50,6 @@
     </ol>
   </section>
 
-  <!-- Config banner (shown until Supabase is configured) -->
   <div id="configBanner" class="config-banner hidden">
     <strong>⚙️ Configuración necesaria</strong>
     <p>Edita <code>src/config.js</code> con tus credenciales de Supabase para activar el modo comunitario.</p>
@@ -64,7 +57,6 @@
     <button id="dismissConfig">Entendido</button>
   </div>
 
-  <!-- Report modal -->
   <div id="modalOverlay" class="modal-overlay hidden">
     <div id="modal" class="modal">
       <div class="modal-handle"></div>
@@ -80,10 +72,10 @@
     </div>
   </div>
 
-  <!-- Scripts -->
+  <!-- Supabase local (evita bloqueos de tracking prevention) -->
+  <script src="src/supabase.js"></script>
   <script src="src/config.js"></script>
   <script src="src/channels.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="src/db.js"></script>
   <script src="src/epg.js"></script>
   <script src="src/app.js"></script>
