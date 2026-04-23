@@ -27,18 +27,21 @@ window.DB = (() => {
     localStorage.setItem(localKey(), JSON.stringify(data));
   }
 
-  function normalizeRow(row) {
-    return {
-      id:        row.id,
-      channelId: row.channel_id,
-      duration:  row.duration,
-      remaining: row.remaining,
-      startedAt: row.started_at,
-      endedAt:   row.ended_at,
-      isActive:  row.is_active,
-      reporters: row.reporters || 1,
-    };
-  }
+function normalizeRow(row) {
+  const elapsed = row.started_at
+    ? Math.floor((Date.now() - new Date(row.started_at).getTime()) / 1000)
+    : 0;
+  return {
+    id:        row.id,
+    channelId: row.channel_id,
+    duration:  row.duration,
+    remaining: row.duration ? Math.max(0, row.duration - elapsed) : null,
+    startedAt: row.started_at,
+    endedAt:   row.ended_at,
+    isActive:  row.is_active,
+    reporters: row.reporters || 1,
+  };
+}
 
   function isOnline() { return !!USE_SUPABASE; }
 
@@ -106,9 +109,7 @@ window.DB = (() => {
       .single();
 
     if (error) { console.error('[DB] reportAd error', error); return null; }
-    const norm = normalizeRow(data);
-    norm.remaining = duration;
-    return norm;
+    return normalizeRow(data);
   }
 
   async function endAd(channelId) {
