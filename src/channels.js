@@ -17,6 +17,9 @@ window.CHANNELS = [
   { id: 'mega',     name: 'Mega',      color: '#F44336', logo: 'MEG' },
   { id: 'clan',     name: 'Clan',      color: '#66BB6A', logo: 'CLA' },
   { id: 'fdf',      name: 'FDF',       color: '#FF6F00', logo: 'FDF' },
+  { id: 'neox',     name: 'Neox',      color: '#5E35B1', logo: 'NOX' },
+  { id: 'nova',     name: 'Nova',      color: '#E91E8C', logo: 'NOV' },
+  { id: 'dkiss',    name: 'DKISS',     color: '#E91E63', logo: 'DKS' },
 ];
 
 window.AD_DURATIONS = [
