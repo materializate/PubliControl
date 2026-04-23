@@ -85,20 +85,38 @@ function toast(msg, type = 'info') {
 function startTicker() {
   if (state.tickInterval) return;
   state.tickInterval = setInterval(() => {
+    const now = Date.now();
     let dirty = false;
-    for (const id in state.ads) {
+
+    for (const id of Object.keys(state.ads)) {
       const ad = state.ads[id];
-      if (ad.duration && ad.remaining > 0) {
-        ad.remaining -= 1;
+      if (!ad.duration || !ad.startedAt) continue;
+
+      // Recalculate remaining from real clock — fixes background/sleep drift
+      const elapsed = Math.floor((now - new Date(ad.startedAt).getTime()) / 1000);
+      const newRemaining = Math.max(0, ad.duration - elapsed);
+
+      if (newRemaining !== ad.remaining) {
+        ad.remaining = newRemaining;
         dirty = true;
-        if (ad.remaining === 0) {
-          const ch = getChannel(id);
-          fireNotification(ch?.name || id, EPG.getNext(id)?.title);
-          toast(`✅ ${ch?.name} ha terminado la publicidad`, 'success');
-          setTimeout(() => { DB.endAd(id); delete state.ads[id]; renderAll(); }, 2000);
-        }
+      }
+
+      // Trigger end exactly once when we hit 0
+      if (newRemaining === 0 && !ad._ending) {
+        ad._ending = true; // flag to avoid firing twice
+        const ch = getChannel(id);
+        fireNotification(ch?.name || id, EPG.getNext(id)?.title);
+        toast(`✅ ${ch?.name} ha terminado la publicidad`, 'success');
+        // End in DB and remove from state after brief visual feedback
+        const capturedId = id;
+        setTimeout(() => {
+          DB.endAd(capturedId);
+          delete state.ads[capturedId];
+          renderAll();
+        }, 1500);
       }
     }
+
     if (dirty) renderActiveList();
   }, 1000);
 }
